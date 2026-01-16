@@ -1,0 +1,26 @@
+# Dependency directories
+node_modules/
+api/node_modules/
+
+# Environment Variables & Secrets (CRITICAL - DO NOT UPLOAD THESE)
+.env
+local.settings.json
+api/local.settings.json
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.vscode/
+.idea/
+
+# Azure build artifacts
+bin/
+obj/
