@@ -7,11 +7,11 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_KEY_HERE&callback=initMap" async defer></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_KEY_HERE" async defer></script>
     
     <style>
         /* DEBUGGER STYLE */
-        #debug-console { background: #000; color: #0f0; padding: 10px; font-family: monospace; font-size: 10px; border-bottom: 2px solid red; max-height: 150px; overflow-y: scroll; }
+        #debug-console { background: #000; color: #0f0; padding: 10px; font-family: monospace; font-size: 10px; border-bottom: 2px solid red; max-height: 150px; overflow-y: scroll; display: none; }
         
         /* GLOBAL STYLES */
         body { background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; -webkit-tap-highlight-color: transparent; }
@@ -149,8 +149,9 @@
     <script>
         // --- ERROR LOGGER ---
         const debugEl = document.getElementById('debug-console');
-        function log(msg) { debugEl.innerHTML += "<div>➤ " + msg + "</div>"; debugEl.scrollTop = debugEl.scrollHeight; }
+        function log(msg) { debugEl.style.display='block'; debugEl.innerHTML += "<div>➤ " + msg + "</div>"; debugEl.scrollTop = debugEl.scrollHeight; }
         window.onerror = function(msg, url, line) { log("<span style='color:red; font-weight:bold;'>CRASH: " + msg + " (Line " + line + ")</span>"); return false; };
+        window.onunhandledrejection = function(e) { log("<span style='color:red; font-weight:bold;'>ASYNC ERROR: " + e.reason + "</span>"); };
 
         const API = "/api";
         let currentUser = null; 
@@ -171,16 +172,15 @@
         async function apiCall(ep, meth="GET", body=null) {
             loader.style.display = 'flex';
             try {
-                log("API Call: " + ep);
+                // log("API Call: " + ep);
                 const opts={method:meth,headers:{'Content-Type':'application/json'}};
                 if(body)opts.body=JSON.stringify(body);
                 const res=await fetch(API+ep,opts); 
                 if(!res.ok) throw new Error("HTTP " + res.status);
                 const json = await res.json();
-                log("API Success: " + ep);
                 return json;
             } catch(e) {
-                log("<span style='color:red'>API Error: " + e.message + "</span>");
+                log("<span style='color:red'>API Error (" + ep + "): " + e.message + "</span>");
                 throw e;
             } finally { loader.style.display = 'none'; }
         }
@@ -220,7 +220,6 @@
         }
         
         function updateRoleUI() { 
-            log("Updating UI for Role: " + currentUser.Role);
             if(currentUser.Role==='Requester') { 
                 document.getElementById("btn-new-permit").classList.remove('hidden'); 
                 document.getElementById("btn-add-worker").classList.remove('hidden'); 
@@ -247,17 +246,22 @@
         window.toggleOtherID = function() { const val = document.getElementById("w-id-type").value; document.getElementById("w-id-type-other").classList.toggle("hidden", val !== "Other"); }
         window.toggleWorkerMode = function() { const dash = document.getElementById("view-dashboard"); const work = document.getElementById("view-worker-management"); document.getElementById("view-map").classList.add('hidden'); if(dash.classList.contains('hidden')) { dash.classList.remove('hidden'); work.classList.add('hidden'); } else { dash.classList.add('hidden'); work.classList.remove('hidden'); loadWorkers('dashboard'); } }
         window.openWorkerForm = function(act, data=null) { window.currentWorkerAction = act; document.getElementById('worker-form-container').classList.remove('hidden'); if(act==='create') { document.getElementById('w-id').value=''; document.querySelectorAll('#worker-form-container input').forEach(i=>i.value=''); } else if(data) { document.getElementById('w-id').value=data.WorkerID; document.getElementById('w-name').value=data.Name; /* Populate others */ } }
-        window.saveWorker = async function(act) { /* Worker Save Logic Omitted for brevity, assuming works */ log("Save worker clicked"); }
-        async function loadWorkers(context) { const res = await apiCall('/get-workers', 'POST', {role:currentUser.Role, email:currentUser.Email, context:context}); /* Render Logic */ }
+        async function loadWorkers(context) { const res = await apiCall('/get-workers', 'POST', {role:currentUser.Role, email:currentUser.Email, context:context}); if(context === 'permit_dropdown') { const con = document.getElementById('worker-checkboxes'); con.innerHTML = res.map(w => `<label class="flex items-center gap-2 border p-3 rounded-lg bg-gray-50"><input type="checkbox" name="Worker_${w.WorkerID}" value='${JSON.stringify(w)}' class="w-5 h-5"> <span class="font-bold">${w.Name}</span> <span class="text-xs text-gray-500">(${w.Age})</span></label>`).join(''); } else { const t = document.querySelector('#table-workers tbody'); t.innerHTML = res.map(w => `<tr><td data-label="Name" class="font-bold text-blue-600">${w.Name}</td><td data-label="Father">${w.Father}</td><td data-label="ID Details">${w.IDType || 'ID'}: ${w.ID}</td><td data-label="Address/Contact">${w.Address}<br><span class="text-xs text-blue-600">${w.Contact}</span></td><td data-label="Requestor" class="font-bold text-indigo-600">${w.RequestorName || 'Unknown'}</td> <td data-label="Status"><span class="px-2 py-1 rounded text-xs font-bold ${w.Status==='Approved'?'bg-green-100 text-green-800':(w.Status==='Rejected'?'bg-red-100 text-red-800':'bg-yellow-100 text-yellow-800')}">${w.Status}</span>${w.ApprovedBy ? `<div class="text-[10px] mt-1 text-green-700">App: ${w.ApprovedBy}<br>${w.ApprovedAt}</div>` : ''}</td><td data-label="Action">${(currentUser.Role !== 'Requester' && w.Status.includes('Pending')) ? `<button onclick="window.workerAction('${w.WorkerID}','approve')" class="text-green-600 font-bold border p-1 rounded hover:bg-green-50">Approve</button> <button onclick="window.workerAction('${w.WorkerID}','reject')" class="text-red-600 font-bold border p-1 rounded hover:bg-red-50 ml-2">Reject</button>` : ''}${(currentUser.Role==='Requester' && w.Status==='Approved') ? `<button onclick='window.openWorkerForm("edit_request", ${JSON.stringify(w)})' class="text-blue-600 font-bold mr-2">Edit</button> <button onclick="window.workerAction('${w.WorkerID}','delete')" class="text-red-600 font-bold">Del</button>` : ''}</td></tr>`).join(''); } }
         window.workerAction = async function(id, act) { await apiCall('/save-worker', 'POST', {WorkerID:id, Action:act, Role:currentUser.Role, ApproverName: currentUser.name}); loadWorkers('dashboard'); }
+        window.saveWorker = async function(act) { 
+            const idTypeRaw = document.getElementById("w-id-type").value; const idTypeFinal = idTypeRaw === "Other" ? document.getElementById("w-id-type-other").value : idTypeRaw; 
+            if(parseInt(document.getElementById("w-age").value) < 18) { alert("Worker must be 18+"); return; }
+            const body = { Action: act, Role: currentUser.Role, RequestorEmail: currentUser.Email, WorkerID: document.getElementById('w-id').value, ApproverName: currentUser.name, RequestorName: currentUser.name, Details: { Name:document.getElementById("w-name").value, Father:document.getElementById("w-father").value, Address:document.getElementById("w-address").value, Contact:document.getElementById("w-contact").value, ID:document.getElementById("w-idcard").value, Gender:document.getElementById("w-gender").value, Age:document.getElementById("w-age").value, IDType: idTypeFinal } }; 
+            const res = await apiCall('/save-worker', 'POST', body); if(res.success) { alert("Saved"); loadWorkers('dashboard'); document.getElementById('worker-form-container').classList.add('hidden'); } else alert(res.error); 
+        }
 
         async function loadDashboard() { 
-            log("Loading Dashboard...");
+            // log("Loading Dashboard...");
             const res = await apiCall('/dashboard', 'POST', {role:currentUser.Role, email:currentUser.Email}); 
-            log("Dashboard Data: " + res.length + " permits found.");
+            // log("Dashboard Data: " + res.length + " permits found.");
             
-            const tP=document.querySelector('#table-pending tbody'), tA=document.querySelector('#table-active tbody'), tO=document.querySelector('#table-other tbody'); 
-            tP.innerHTML=""; tA.innerHTML=""; tO.innerHTML=""; 
+            const tP=document.querySelector('#table-pending tbody'), tA=document.querySelector('#table-active tbody');
+            tP.innerHTML=""; tA.innerHTML=""; 
             res.forEach(p => { 
                 let pendingWith = "-"; 
                 if(p.Status.includes('Review')) pendingWith = p.ReviewerEmail ? p.ReviewerEmail.split('@')[0] : '-'; 
@@ -269,13 +273,12 @@
                 if(currentUser.Role === 'Approver' && p.Status.includes('Approval') && p.ApproverEmail === currentUser.Email) isAction = true; 
                 if(currentUser.Role === 'Requester' && p.Status.includes('Pending')) isAction = true; 
                 
-                if(isAction) tP.innerHTML += row; else if(p.Status === 'Active') tA.innerHTML += row; else tO.innerHTML += row; 
+                if(isAction) tP.innerHTML += row; else tA.innerHTML += row;
             }); 
         }
 
         // --- OPEN PERMIT DEBUGGED ---
         window.openPermit = async function(id) {
-            log("Opening Permit: " + id);
             try {
                 const p = await apiCall('/permit-data', 'POST', {permitId:id});
                 currentPermitId = id;
@@ -308,7 +311,26 @@
                 // --- SHOW VIEW ---
                 document.getElementById("view-dashboard").classList.add('hidden'); 
                 document.getElementById("view-form").classList.remove('hidden');
-                log("Permit View Opened Successfully");
+                
+                // Show Update/Review Buttons if needed
+                const r = currentUser.Role; const s = p.Status;
+                let btns = "";
+                if(s === 'Pending Review' && r==='Requester') {
+                    document.querySelectorAll('#pf input, #pf select, #pf textarea').forEach(e=>e.disabled=false);
+                    btns=`<button type="button" onclick="window.savePermit()" class="w-full bg-blue-600 text-white px-3 rounded-lg font-bold shadow-lg">Update Permit</button>`;
+                } else if(s === 'Pending Review' && r==='Reviewer') {
+                    document.getElementById("fs-reviewer-section").classList.remove('hidden');
+                    document.querySelectorAll('#fs-reviewer-section *, #hazards-section input').forEach(e=>e.disabled=false);
+                    btns=`<button type="button" onclick="window.upd('reject')" class="bg-red-600 text-white px-4 py-3 rounded-lg font-bold flex-1">Reject</button><button type="button" onclick="window.upd('review')" class="bg-green-600 text-white px-4 py-3 rounded-lg font-bold flex-1">Submit Review</button>`;
+                } else if(s === 'Pending Approval' && r==='Approver') {
+                    document.getElementById("fs-approver-section").classList.remove('hidden');
+                    document.getElementById("Approver_Remarks").disabled=false;
+                    btns=`<button type="button" onclick="window.upd('reject')" class="bg-red-600 text-white px-4 py-3 rounded-lg font-bold flex-1">Reject</button><button type="button" onclick="window.upd('approve')" class="bg-green-600 text-white px-4 py-3 rounded-lg font-bold flex-1">Approve</button>`;
+                } else {
+                    btns += `<a href="${API}/download-pdf/${id}" target="_blank" class="bg-gray-700 text-white px-6 py-3 rounded-lg font-bold shadow flex-1 text-center">Download PDF</a>`;
+                }
+                
+                document.getElementById("actions").innerHTML = btns;
 
             } catch (e) {
                 log("<span style='color:red'>CRITICAL ERROR OPENING PERMIT: " + e.message + "</span>");
@@ -324,6 +346,91 @@
             const p = await apiCall('/map-data', 'POST'); 
             if(!mapInstance) mapInstance=new google.maps.Map(document.getElementById("map"),{center:{lat:22.57,lng:88.36},zoom:5}); 
             // Marker logic omitted for brevity
+        }
+        
+        window.showNewPermit = async function() { 
+            document.getElementById("pf").reset(); currentPermitId=null; 
+            document.getElementById("Status").value="New"; document.getElementById("permit-header-display").innerText = "New Permit"; 
+            document.getElementById("permit-worker-audit-display").classList.add("hidden"); 
+            document.getElementById("iocl-sup-display-section").classList.add('hidden'); 
+            document.getElementById("iocl-reviewer-wrapper").classList.add('hidden'); 
+            document.getElementById("iocl-approver-wrapper").classList.add('hidden'); 
+            document.getElementById("first-renewal-decision").classList.add('hidden'); 
+            
+            const rS=document.getElementById("ReviewerEmail"), aS=document.getElementById("ApproverEmail"); 
+            if(rS && aS) { rS.innerHTML=""; aS.innerHTML=""; if(usersData){ usersData.Reviewers.forEach(u=>rS.innerHTML+=`<option value="${u.email}">${u.name}</option>`); usersData.Approvers.forEach(u=>aS.innerHTML+=`<option value="${u.email}">${u.name}</option>`); } } 
+            document.querySelectorAll('input, textarea, select').forEach(e=>e.disabled=false); 
+            
+            const safeSet = (id, val) => { const el = document.getElementById(id); if(el) { el.value = val; } }; 
+            safeSet("RequesterName", currentUser.name); safeSet("Vendor", currentUser.name); document.getElementById("Vendor").readOnly=true; document.getElementById("RequesterName").disabled=false; 
+            await loadWorkers('permit_dropdown'); document.querySelectorAll('#worker-checkboxes input').forEach(c => c.disabled = false); document.getElementById('worker-checkboxes').classList.remove('hidden'); document.getElementById('worker-readonly-table').classList.add('hidden'); document.getElementById("fs-reviewer-section").classList.add('hidden'); document.getElementById("fs-approver-section").classList.add('hidden'); document.getElementById("renewals-section").classList.add('hidden'); document.getElementById("closure-section").classList.add('hidden'); 
+            
+            const gsrEl = document.getElementById("gsr-check");
+            gsrEl.checked = false;
+            gsrEl.disabled = false;
+            document.getElementById("gsr-container").classList.remove('hidden');
+
+            document.getElementById("chk-init-renewal").checked = false;
+            document.getElementById("div-init-renewal").classList.add('hidden');
+            document.getElementById("init-renewal-wrapper").classList.remove('hidden'); 
+            
+            document.getElementById("actions").innerHTML = `<button type="button" onclick="window.savePermit()" class="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-bold shadow-lg">Submit Permit</button>`; 
+            document.getElementById("view-dashboard").classList.add('hidden'); document.getElementById("view-form").classList.remove('hidden'); 
+        }
+
+        window.savePermit = async function() { 
+            if(!document.getElementById('gsr-check').checked) {
+                alert("You must accept the Golden Safety Rules terms to proceed.");
+                return;
+            }
+            // Simple validation logic here...
+            document.getElementById('loader').style.display = 'flex'; 
+            try { 
+                const formData = new FormData(document.getElementById("pf"));
+                const dataObj = {};
+                formData.forEach((value, key) => dataObj[key] = value);
+                
+                document.querySelectorAll('input[type="checkbox"]').forEach(c => {
+                    if (c.name && !c.name.startsWith('Worker_')) { dataObj[c.name] = c.checked ? "Y" : "N"; }
+                });
+                dataObj.GSR_Accepted = "Y";
+                const selectedWorkers = []; 
+                document.querySelectorAll('#worker-checkboxes input:checked').forEach(c => { selectedWorkers.push(JSON.parse(c.value)); }); 
+                dataObj.SelectedWorkers = selectedWorkers; 
+                
+                if(currentUser && currentUser.Email) { dataObj.RequesterEmail = currentUser.Email; }
+                if(currentPermitId) dataObj.PermitID = currentPermitId; 
+                
+                const res = await apiCall('/save-permit', 'POST', dataObj);
+                if(res.success){ alert("Saved successfully: " + res.permitId); showDashboard(); } else { alert("Error: " + (res.error || "Unknown Error")); }
+            } catch (e) { alert("Submission Failed: " + e.message); } finally { document.getElementById('loader').style.display = 'none'; } 
+        };
+        window.checkDate = function() { const vf=new Date(document.getElementById("ValidFrom").value); const vt=new Date(document.getElementById("ValidTo").value); if(vf && vt) { if(vt <= vf) { alert("End time must be greater than Start time"); document.getElementById("ValidTo").value=""; return; } if((vt-vf)/(1000*60*60*24) > 7) { alert("Max 7 Days"); document.getElementById("ValidTo").value=""; } } }
+        window.upd = async function(act) {
+            // (Simplified update logic)
+            const getVal = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
+            const body = { 
+                PermitID: currentPermitId, action: act, role: currentUser.Role, user: currentUser.name,
+                comment: (currentUser.Role==='Reviewer' ? getVal("Reviewer_Remarks") : getVal("Approver_Remarks")),
+            };
+            // Add specific logic for Reviewer data capture...
+            if(currentUser.Role === 'Reviewer' && act === 'review') {
+                 body.Reviewer_Remarks = getVal("Reviewer_Remarks");
+                 body.AdditionalPrecautions = getVal("AdditionalPrecautions");
+                 // Capture hazards/PPE again if needed
+                 document.querySelectorAll('#hazards-section input[type=checkbox]').forEach(c => body[c.name] = c.checked ? 'Y' : 'N');
+                 document.querySelectorAll('#ppe-container input[type=checkbox]').forEach(c => body[c.name] = c.checked ? 'Y' : 'N');
+            }
+            if(currentUser.Role === 'Approver') { body.Approver_Remarks = getVal("Approver_Remarks"); }
+
+            const res = await apiCall('/update-status', 'POST', body);
+            if(res.success) showDashboard(); else alert(res.error);
+        }
+        window.submitRenewal = async function(act) {
+             const getVal = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
+             const body = { PermitID: currentPermitId, userRole: currentUser.Role, userName: currentUser.name, action: act, RenewalValidFrom: getVal("RenewalValidFrom"), RenewalValidTo: getVal("RenewalValidTo"), hc: getVal("RenewalHC"), toxic: getVal("RenewalToxic"), oxygen: getVal("RenewalOxygen"), precautions: getVal("RenewalPrec"), rejectionReason: getVal("RenewalRemark") };
+             const res = await apiCall('/renewal', 'POST', body);
+             if(res.success) { alert("Done"); showDashboard(); } else alert(res.error);
         }
     </script>
 </body>
