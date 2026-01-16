@@ -323,7 +323,25 @@
             document.getElementById('ppe-container').innerHTML = PPE.map(p => `<label class="flex items-center gap-2 border p-3 rounded-lg bg-gray-50 hover:bg-blue-50 transition"><input type="checkbox" name="P_${p.replace(/ /g,'')}" value="Y" class="w-5 h-5 text-blue-600"> <span class="text-sm font-medium">${p}</span></label>`).join('');
         }
 
-        window.loadUsers = async function() { try { const u = await apiCall('/users'); usersData = u; document.getElementById("login-role").value = "Requester"; loadUserNames(); } catch (e) { console.error("Failed", e); } }
+       window.loadUsers = async function() { 
+            try { 
+                // DEBUG: Alert that we are starting
+                // alert("Attempting to load users..."); 
+
+                const u = await apiCall('/users'); 
+                
+                // DEBUG: Alert if we got data
+                // alert("Data received: " + JSON.stringify(u).substring(0, 50) + "...");
+
+                usersData = u; 
+                document.getElementById("login-role").value = "Requester"; 
+                loadUserNames(); 
+            } catch (e) { 
+                // DEBUG: Alert the specific error
+                alert("CRITICAL ERROR: " + e.message); 
+                console.error("Failed", e); 
+            } 
+        }
         window.loadUserNames = function() { const role = document.getElementById("login-role").value; const names = usersData[role+'s'] || []; const sel = document.getElementById("login-name"); sel.innerHTML = names.map(u => `<option value="${u.email}">${u.name}</option>`).join(''); sel.disabled = false; }
         window.handleLogin = async function() { const r=document.getElementById("login-role").value; const n=document.getElementById("login-name").options[document.getElementById("login-name").selectedIndex].text; const e=document.getElementById("login-name").value; const p=document.getElementById("login-password").value; const res=await apiCall('/login','POST',{role:r,name:e,password:p}); if(res.success){ currentUser={...res.user, name:n}; document.getElementById("view-login").classList.add('hidden'); document.getElementById("app-container").classList.remove('hidden'); document.getElementById("user-info").innerText=`${n} (${r})`; updateRoleUI(); loadDashboard(); } else alert("Invalid Login"); }
         function updateRoleUI() { if(currentUser.Role==='Requester') { document.getElementById("btn-new-permit").classList.remove('hidden'); document.getElementById("btn-add-worker").classList.remove('hidden'); document.getElementById("btn-header-map").classList.add('hidden'); } if(currentUser.Role!=='Requester') { document.getElementById("btn-view-map").classList.remove('hidden'); document.getElementById("btn-download-excel").classList.remove('hidden'); document.getElementById("charts-container").classList.remove('hidden'); document.getElementById("btn-header-map").classList.remove('hidden'); loadStats(); if(currentUser.Role==='Approver') document.getElementById("btn-add-user").classList.remove('hidden'); } }
@@ -782,3 +800,4 @@
     </script>
 </body>
 </html>
+
