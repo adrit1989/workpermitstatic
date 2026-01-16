@@ -1,0 +1,15 @@
+{
+  "name": "work-permit-api",
+  "version": "1.0.0",
+  "description": "Serverless API for Work Permit System",
+  "scripts": {
+    "start": "func start"
+  },
+  "dependencies": {
+    "mssql": "^10.0.1",
+    "pdfkit": "^0.14.0",
+    "exceljs": "^4.4.0",
+    "@azure/storage-blob": "^12.17.0",
+    "multiparty": "^4.2.3"
+  }
+}
