@@ -325,20 +325,19 @@
 
        window.loadUsers = async function() { 
             try { 
-                // DEBUG: Alert that we are starting
-                // alert("Attempting to load users..."); 
+                // REMOVE THE // BELOW:
+                alert("1. STARTING: Loading users..."); 
 
                 const u = await apiCall('/users'); 
                 
-                // DEBUG: Alert if we got data
-                // alert("Data received: " + JSON.stringify(u).substring(0, 50) + "...");
+                // REMOVE THE // BELOW:
+                alert("2. SUCCESS: Got data! " + JSON.stringify(u).substring(0, 100));
 
                 usersData = u; 
                 document.getElementById("login-role").value = "Requester"; 
                 loadUserNames(); 
             } catch (e) { 
-                // DEBUG: Alert the specific error
-                alert("CRITICAL ERROR: " + e.message); 
+                alert("3. ERROR: " + e.message); 
                 console.error("Failed", e); 
             } 
         }
@@ -800,4 +799,5 @@
     </script>
 </body>
 </html>
+
 
